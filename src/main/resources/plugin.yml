@@ -1,0 +1,4 @@
+name: Utilities
+version: '${version}'
+main: com.github.m4kvn.spigot.spigotutilities.Main
+api-version: 1.19
