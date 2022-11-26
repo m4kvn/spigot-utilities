@@ -55,3 +55,8 @@ compileKotlin {
         jvmTarget = "1.8"
     }
 }
+
+jar {
+    exclude "META-INF/versions/9/module-info.class"
+    from configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+}

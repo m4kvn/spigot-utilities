@@ -2,3 +2,8 @@ name: Utilities
 version: '${version}'
 main: com.github.m4kvn.spigot.spigotutilities.Main
 api-version: 1.19
+commands:
+  utilities:
+    description: This is utilities command.
+    usage: /<command>
+    aliases: ["ut"]
