@@ -3,8 +3,11 @@ plugins {
     id 'org.jetbrains.kotlin.jvm' version '1.7.20'
 }
 
+def version_plugin = System.getenv("GITHUB_REF_NAME") ?: github_ref_name
+def version_spigot_api = System.getenv("SPIGOT_VERSION") ?: spigot_version
+def version_spigot = "${version_spigot_api}-R0.1-SNAPSHOT"
 group = 'com.github.m4kvn.spigot'
-version = '1.0-SNAPSHOT'
+version = "${version_plugin}-${version_spigot}"
 
 repositories {
     mavenLocal()
@@ -20,7 +23,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly 'org.spigotmc:spigot:1.19-R0.1-SNAPSHOT'
+    compileOnly "org.spigotmc:spigot:$version_spigot"
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
     implementation "io.insert-koin:koin-core:3.2.2"
 }
@@ -60,3 +63,10 @@ jar {
     exclude "META-INF/versions/9/module-info.class"
     from configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
 }
+
+task copyJarToServer(type: Copy) {
+    from jar
+    into "server/plugins"
+}
+
+build.dependsOn copyJarToServer
