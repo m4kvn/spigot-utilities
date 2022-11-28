@@ -1,5 +1,12 @@
 package com.github.m4kvn.spigot.spigotutilities
 
+import org.bukkit.ChatColor
+import org.bukkit.GameMode
+import org.bukkit.NamespacedKey
+import org.bukkit.command.Command
+import org.bukkit.command.CommandExecutor
+import org.bukkit.command.CommandSender
+import org.bukkit.enchantments.Enchantment
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
@@ -77,10 +84,70 @@ class Main : JavaPlugin() {
             sender.sendMessage("Complete configuration changes.")
             true
         }
+        getCommand("evolution")?.setExecutor(EvolutionCommandExecutor())
     }
 
     override fun onDisable() {
         // Plugin shutdown logic
+    }
+
+    class EvolutionCommandExecutor : CommandExecutor {
+
+        private val Player.notEnoughExpLevel: Boolean
+            get() {
+                if (gameMode == GameMode.CREATIVE) return false
+                if (level >= REQUIRE_LEVEL) return false
+                return true
+            }
+
+        override fun onCommand(
+            sender: CommandSender,
+            command: Command,
+            label: String,
+            args: Array<out String>,
+        ): Boolean {
+            if (sender !is Player) {
+                sender.sendMessage("This command must be executed by the player.")
+                return false
+            }
+            val mainHandItem = sender.inventory.itemInMainHand
+            val enchantments = mainHandItem.enchantments
+            if (enchantments.isEmpty()) {
+                sender.sendMessage("This item has not any enchantments.")
+                return false
+            }
+            if (args.isEmpty()) {
+                sender.sendMessage(buildString {
+                    appendLine("Available enchantment list of ${mainHandItem.type}")
+                    append(enchantments.keys.joinToString(separator = "\n") {
+                        "- ${ChatColor.AQUA}${it.key.key}${ChatColor.RESET} (lv.${enchantments[it]})"
+                    })
+                })
+                return true
+            }
+            if (args.size > 1) {
+                sender.sendMessage("Invalid args size.")
+                return false
+            }
+            val enchantmentName = NamespacedKey.fromString(args[0])
+            val enchantment = Enchantment.getByKey(enchantmentName)
+            if (enchantment == null) {
+                sender.sendMessage("Invalid enchantment name. (${args[0]})")
+                return true
+            }
+            val currentLevel = mainHandItem.getEnchantmentLevel(enchantment)
+            if (sender.notEnoughExpLevel) {
+                sender.sendMessage("Not enough Exp Level for evolution. (require: ${REQUIRE_LEVEL})")
+                return true
+            }
+            sender.level = sender.level - REQUIRE_LEVEL
+            mainHandItem.addUnsafeEnchantment(enchantment, currentLevel + 1)
+            return true
+        }
+
+        companion object {
+            private const val REQUIRE_LEVEL = 10
+        }
     }
 
     companion object {

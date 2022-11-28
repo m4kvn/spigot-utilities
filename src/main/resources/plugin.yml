@@ -6,4 +6,8 @@ commands:
   utilities:
     description: This is utilities command.
     usage: /<command>
-    aliases: ["ut"]
+    aliases: [ "ut" ]
+  evolution:
+    description: This is evolution command.
+    usage: /<command> <enchantment>
+    aliases: [ "evo" ]
