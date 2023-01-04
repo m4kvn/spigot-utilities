@@ -69,4 +69,4 @@ task copyJarToServer(type: Copy) {
     into "server/plugins"
 }
 
-build.dependsOn copyJarToServer
+assemble.dependsOn copyJarToServer
