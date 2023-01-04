@@ -6,7 +6,7 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
 abstract class BaseListener : Listener, KoinComponent {
-    private val plugin: JavaPlugin by inject()
+    protected val plugin: JavaPlugin by inject()
 
     fun register() {
         plugin.server.pluginManager.registerEvents(this, plugin)
