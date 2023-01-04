@@ -9,7 +9,7 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
 abstract class BaseCommandExecutor : CommandExecutor, TabCompleter, KoinComponent {
-    private val plugin: JavaPlugin by inject()
+    protected val plugin: JavaPlugin by inject()
 
     abstract val commandName: String
 

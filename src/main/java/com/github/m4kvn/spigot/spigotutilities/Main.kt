@@ -1,8 +1,8 @@
 package com.github.m4kvn.spigot.spigotutilities
 
 import com.github.m4kvn.spigot.spigotutilities.command.EvolutionCommandExecutor
+import com.github.m4kvn.spigot.spigotutilities.command.UtilitiesCommandExecutor
 import com.github.m4kvn.spigot.spigotutilities.listener.FireProtectListener
-import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.entity.EntityExplodeEvent
@@ -20,12 +20,13 @@ class Main : JavaPlugin() {
 
     override fun onEnable() {
         startKoin { modules(module) }
-        setCommandExecutor()
+        UtilitiesCommandExecutor().register()
+        EvolutionCommandExecutor().register()
+        FireProtectListener().register()
         registerEvents()
     }
 
     private fun registerEvents() {
-        FireProtectListener().register()
         server.pluginManager.registerEvents(object : Listener {
             @EventHandler
             fun onPlayerDeath(event: PlayerDeathEvent) {
@@ -48,55 +49,5 @@ class Main : JavaPlugin() {
                 saveConfig()
             }
         }, this)
-    }
-
-    private fun setCommandExecutor() {
-        getCommand("utilities")?.setExecutor { sender, _, _, args ->
-            if (sender !is Player) {
-                sender.sendMessage("This command must be executed by the player.")
-                return@setExecutor false
-            }
-            if (args.size < 2) {
-                sender.sendMessage("Invalid arguments size.")
-                return@setExecutor false
-            }
-            val parameter = Configs.find(args[0])
-            if (parameter == null) {
-                sender.sendMessage("Invalid configuration name.")
-                return@setExecutor false
-            }
-            val value = args[1].toBooleanStrictOrNull()
-            if (value == null) {
-                sender.sendMessage("Invalid configuration value.")
-                return@setExecutor false
-            }
-            config["${sender.name}.${parameter.asPath}"] = value
-            saveConfig()
-            sender.sendMessage("Complete configuration changes.")
-            true
-        }
-        EvolutionCommandExecutor().register()
-    }
-
-    override fun onDisable() {
-        // Plugin shutdown logic
-    }
-
-    companion object {
-        enum class Configs {
-            DEATH_PENALTY,
-            ;
-
-            val asPath: String
-                get() = name.lowercase()
-
-            companion object {
-                fun find(path: String): Configs? {
-                    return runCatching {
-                        Configs.valueOf(path.uppercase())
-                    }.getOrNull()
-                }
-            }
-        }
     }
 }
