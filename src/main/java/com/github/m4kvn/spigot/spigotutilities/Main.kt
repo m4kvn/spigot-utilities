@@ -1,5 +1,6 @@
 package com.github.m4kvn.spigot.spigotutilities
 
+import com.github.m4kvn.spigot.spigotutilities.listener.FireProtectListener
 import org.bukkit.ChatColor
 import org.bukkit.GameMode
 import org.bukkit.NamespacedKey
@@ -10,7 +11,6 @@ import org.bukkit.enchantments.Enchantment
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
-import org.bukkit.event.block.BlockBurnEvent
 import org.bukkit.event.entity.EntityExplodeEvent
 import org.bukkit.event.entity.PlayerDeathEvent
 import org.bukkit.event.player.PlayerJoinEvent
@@ -33,6 +33,7 @@ class Main : JavaPlugin() {
     }
 
     private fun registerEvents() {
+        FireProtectListener().register()
         server.pluginManager.registerEvents(object : Listener {
             private val evoRegex = "^/(evolution|evo)(\\s*|\\s+.+)".toRegex()
             private val flags = listOf("-d")
@@ -46,18 +47,14 @@ class Main : JavaPlugin() {
                 event.droppedExp = 0
             }
             @EventHandler
-            fun onBlockBurn(event: BlockBurnEvent) {
-                event.isCancelled = true
-            }
-            @EventHandler
             fun onEntityExplode(event: EntityExplodeEvent) {
                 event.blockList().clear()
             }
             @EventHandler
             fun onPlayerJoinEvent(event: PlayerJoinEvent) {
                 if (config.contains(event.player.name)) return
-                server.consoleSender.sendMessage("NO configuration for ${event.player.name}")
-                server.consoleSender.sendMessage("Creating default configurations...")
+                sendConsole { "NO configuration for ${event.player.name}" }
+                sendConsole { "Creating default configurations..." }
                 config["${event.player.name}.${Configs.DEATH_PENALTY.asPath}"] = true
                 saveConfig()
             }
