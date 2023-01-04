@@ -14,6 +14,7 @@ import org.bukkit.event.block.BlockBurnEvent
 import org.bukkit.event.entity.EntityExplodeEvent
 import org.bukkit.event.entity.PlayerDeathEvent
 import org.bukkit.event.player.PlayerJoinEvent
+import org.bukkit.event.server.TabCompleteEvent
 import org.bukkit.inventory.ItemStack
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.context.startKoin
@@ -33,6 +34,9 @@ class Main : JavaPlugin() {
 
     private fun registerEvents() {
         server.pluginManager.registerEvents(object : Listener {
+            private val evoRegex = "^/(evolution|evo)(\\s*|\\s+.+)".toRegex()
+            private val flags = listOf("-d")
+
             @EventHandler
             fun onPlayerDeath(event: PlayerDeathEvent) {
                 if (config.getBoolean("${event.entity.name}.${Configs.DEATH_PENALTY.asPath}")) return
@@ -56,6 +60,28 @@ class Main : JavaPlugin() {
                 server.consoleSender.sendMessage("Creating default configurations...")
                 config["${event.player.name}.${Configs.DEATH_PENALTY.asPath}"] = true
                 saveConfig()
+            }
+            @EventHandler
+            fun onTabCompleteEvent(event: TabCompleteEvent) {
+                if (event.buffer.isBlank()) return
+                if (!event.buffer.matches(evoRegex)) return
+                val player = event.sender as? Player ?: return
+                val bufferList = event.buffer.split("\\s+".toRegex()).drop(1)
+                val enchantments = player.inventory.itemInMainHand.enchantments.keys.map { it.key.key }
+                bufferList.forEachIndexed { index, buffer ->
+                    event.completions = when (index) {
+                        0 -> {
+                            val allCompletions = flags + enchantments
+                            if (buffer.isBlank())
+                                allCompletions else
+                                allCompletions.filter { it.matches("^${buffer}.*".toRegex()) }
+                        }
+
+                        else -> if (flags.contains(bufferList[index - 1]))
+                            enchantments.filter { it.matches("^${buffer}.*".toRegex()) } else
+                            emptyList()
+                    }
+                }
             }
         }, this)
     }
