@@ -14,6 +14,7 @@ import org.bukkit.event.block.BlockBurnEvent
 import org.bukkit.event.entity.EntityExplodeEvent
 import org.bukkit.event.entity.PlayerDeathEvent
 import org.bukkit.event.player.PlayerJoinEvent
+import org.bukkit.inventory.ItemStack
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.context.startKoin
 import org.koin.dsl.module
@@ -92,6 +93,9 @@ class Main : JavaPlugin() {
     }
 
     class EvolutionCommandExecutor : CommandExecutor {
+        private val flags = mapOf(
+            "-d" to Flag.DELETE,
+        )
 
         private val Player.notEnoughExpLevel: Boolean
             get() {
@@ -125,24 +129,55 @@ class Main : JavaPlugin() {
                 })
                 return true
             }
-            if (args.size > 1) {
-                sender.sendMessage("Invalid args size.")
+            return when (flags[args.first()]) {
+                Flag.DELETE -> sender.executeDelete(mainHandItem, args.drop(1))
+                else -> sender.executeEvo(mainHandItem, args.first())
+            }
+        }
+
+        private fun Player.executeDelete(itemStack: ItemStack, args: List<String>): Boolean {
+            if (args.isEmpty()) {
+                sendMessage("Invalid args size.")
                 return false
             }
-            val enchantmentName = NamespacedKey.fromString(args[0])
-            val enchantment = Enchantment.getByKey(enchantmentName)
-            if (enchantment == null) {
-                sender.sendMessage("Invalid enchantment name. (${args[0]})")
-                return true
+            val enchantmentName = args.first()
+            val enchantment = findEnchantment(enchantmentName)
+                ?: return sendInvalidEnchantmentNameMessage(enchantmentName)
+            val currentLevel = itemStack.getEnchantmentLevel(enchantment)
+            if (currentLevel == 1) {
+                itemStack.removeEnchantment(enchantment)
+            } else {
+                itemStack.addUnsafeEnchantment(enchantment, currentLevel - 1)
             }
-            val currentLevel = mainHandItem.getEnchantmentLevel(enchantment)
-            if (sender.notEnoughExpLevel) {
-                sender.sendMessage("Not enough Exp Level for evolution. (require: ${REQUIRE_LEVEL})")
-                return true
-            }
-            sender.level = sender.level - REQUIRE_LEVEL
-            mainHandItem.addUnsafeEnchantment(enchantment, currentLevel + 1)
+            level += REQUIRE_LEVEL
             return true
+        }
+
+        private fun Player.executeEvo(itemStack: ItemStack, enchantmentName: String): Boolean {
+            val enchantment = findEnchantment(enchantmentName)
+                ?: return sendInvalidEnchantmentNameMessage(enchantmentName)
+            val currentLevel = itemStack.getEnchantmentLevel(enchantment)
+            if (notEnoughExpLevel) {
+                sendMessage("Not enough Exp Level for evolution. (require: ${REQUIRE_LEVEL})")
+                return true
+            }
+            level -= REQUIRE_LEVEL
+            itemStack.addUnsafeEnchantment(enchantment, currentLevel + 1)
+            return true
+        }
+
+        private fun findEnchantment(name: String): Enchantment? {
+            val enchantmentKey = NamespacedKey.fromString(name)
+            return Enchantment.getByKey(enchantmentKey)
+        }
+
+        private fun Player.sendInvalidEnchantmentNameMessage(name: String): Boolean {
+            sendMessage("Invalid enchantment name. (${name})")
+            return true
+        }
+
+        enum class Flag {
+            DELETE,
         }
 
         companion object {
