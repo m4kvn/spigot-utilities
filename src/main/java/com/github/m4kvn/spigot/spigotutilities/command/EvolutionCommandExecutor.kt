@@ -1,16 +1,16 @@
 package com.github.m4kvn.spigot.spigotutilities.command
 
+import com.github.m4kvn.spigot.spigotutilities.command.core.CommandExecutorException
+import com.github.m4kvn.spigot.spigotutilities.command.evolution.EvolutionStoreCommandExecutor
 import com.github.m4kvn.spigot.spigotutilities.send
 import org.bukkit.ChatColor
 import org.bukkit.GameMode
-import org.bukkit.Material
 import org.bukkit.NamespacedKey
 import org.bukkit.command.Command
 import org.bukkit.command.CommandSender
 import org.bukkit.enchantments.Enchantment
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
-import org.bukkit.inventory.meta.EnchantmentStorageMeta
 
 class EvolutionCommandExecutor : BaseCommandExecutor() {
     override val commandName: String = "evolution"
@@ -37,9 +37,21 @@ class EvolutionCommandExecutor : BaseCommandExecutor() {
             }
             return true
         }
-        return when (flags[args.first()]) {
+        return when (val flag = flags[args.first()]) {
             Flag.DELETE -> sender.executeDelete(mainHandItem, args.drop(1))
-            Flag.STORE -> sender.executeSave(mainHandItem, args.drop(1))
+            Flag.STORE -> {
+                val subCommand = EvolutionStoreCommandExecutor()
+                try {
+                    subCommand.onCommand(sender, args.drop(1))
+                } catch (e: CommandExecutorException) {
+                    sender.send { e.message }
+                    if (e.showUsage) {
+                        sender.send { "Usage: /$label $flag ${subCommand.usage}" }
+                    }
+                }
+                true
+            }
+
             else -> sender.executeEvo(mainHandItem, args.first())
         }
     }
@@ -78,39 +90,6 @@ class EvolutionCommandExecutor : BaseCommandExecutor() {
     private fun findEnchantment(name: String): Enchantment? {
         val enchantmentKey = NamespacedKey.fromString(name)
         return Enchantment.getByKey(enchantmentKey)
-    }
-
-    private fun createEnchantedBook(enchantment: Enchantment, level: Int): ItemStack {
-        val book = ItemStack(Material.ENCHANTED_BOOK, 1)
-        val meta = book.itemMeta as EnchantmentStorageMeta
-        meta.addStoredEnchant(enchantment, level, true)
-        book.itemMeta = meta
-        return book
-    }
-
-    private fun Player.executeSave(itemStack: ItemStack, args: List<String>): Boolean {
-        if (args.isEmpty()) return sendInvalidArgsSizeMessage()
-        val enchantmentName = args.first()
-        val enchantment = findEnchantment(enchantmentName)
-            ?: return sendInvalidEnchantmentNameMessage(enchantmentName)
-        val currentLevel = itemStack.getEnchantmentLevel(enchantment)
-        val requireLevel = currentLevel * REQUIRE_LEVEL
-        if (!isCreative && requireLevel > level) {
-            send { "Not enough Exp Level for evolution save. (require: ${requireLevel})" }
-            return true
-        }
-        val index = inventory.firstEmpty()
-        if (index == -1) {
-            send { "Not enough space in your inventory." }
-            return true
-        }
-        val book = createEnchantedBook(enchantment, currentLevel)
-        inventory.setItem(index, book)
-        itemStack.removeEnchantment(enchantment)
-        if (!isCreative) {
-            level -= requireLevel
-        }
-        return true
     }
 
     private fun Player.executeDelete(itemStack: ItemStack, args: List<String>): Boolean {
