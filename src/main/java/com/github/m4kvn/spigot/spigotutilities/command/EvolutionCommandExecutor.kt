@@ -3,12 +3,14 @@ package com.github.m4kvn.spigot.spigotutilities.command
 import com.github.m4kvn.spigot.spigotutilities.send
 import org.bukkit.ChatColor
 import org.bukkit.GameMode
+import org.bukkit.Material
 import org.bukkit.NamespacedKey
 import org.bukkit.command.Command
 import org.bukkit.command.CommandSender
 import org.bukkit.enchantments.Enchantment
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
+import org.bukkit.inventory.meta.EnchantmentStorageMeta
 
 class EvolutionCommandExecutor : BaseCommandExecutor() {
     override val commandName: String = "evolution"
@@ -37,6 +39,7 @@ class EvolutionCommandExecutor : BaseCommandExecutor() {
         }
         return when (flags[args.first()]) {
             Flag.DELETE -> sender.executeDelete(mainHandItem, args.drop(1))
+            Flag.STORE -> sender.executeSave(mainHandItem, args.drop(1))
             else -> sender.executeEvo(mainHandItem, args.first())
         }
     }
@@ -77,11 +80,41 @@ class EvolutionCommandExecutor : BaseCommandExecutor() {
         return Enchantment.getByKey(enchantmentKey)
     }
 
-    private fun Player.executeDelete(itemStack: ItemStack, args: List<String>): Boolean {
-        if (args.isEmpty()) {
-            send { "Invalid args size." }
-            return false
+    private fun createEnchantedBook(enchantment: Enchantment, level: Int): ItemStack {
+        val book = ItemStack(Material.ENCHANTED_BOOK, 1)
+        val meta = book.itemMeta as EnchantmentStorageMeta
+        meta.addStoredEnchant(enchantment, level, true)
+        book.itemMeta = meta
+        return book
+    }
+
+    private fun Player.executeSave(itemStack: ItemStack, args: List<String>): Boolean {
+        if (args.isEmpty()) return sendInvalidArgsSizeMessage()
+        val enchantmentName = args.first()
+        val enchantment = findEnchantment(enchantmentName)
+            ?: return sendInvalidEnchantmentNameMessage(enchantmentName)
+        val currentLevel = itemStack.getEnchantmentLevel(enchantment)
+        val requireLevel = currentLevel * REQUIRE_LEVEL
+        if (!isCreative && requireLevel > level) {
+            send { "Not enough Exp Level for evolution save. (require: ${requireLevel})" }
+            return true
         }
+        val index = inventory.firstEmpty()
+        if (index == -1) {
+            send { "Not enough space in your inventory." }
+            return true
+        }
+        val book = createEnchantedBook(enchantment, currentLevel)
+        inventory.setItem(index, book)
+        itemStack.removeEnchantment(enchantment)
+        if (!isCreative) {
+            level -= requireLevel
+        }
+        return true
+    }
+
+    private fun Player.executeDelete(itemStack: ItemStack, args: List<String>): Boolean {
+        if (args.isEmpty()) return sendInvalidArgsSizeMessage()
         val enchantmentName = args.first()
         val enchantment = findEnchantment(enchantmentName)
             ?: return sendInvalidEnchantmentNameMessage(enchantmentName)
@@ -99,7 +132,7 @@ class EvolutionCommandExecutor : BaseCommandExecutor() {
         val enchantment = findEnchantment(enchantmentName)
             ?: return sendInvalidEnchantmentNameMessage(enchantmentName)
         val currentLevel = itemStack.getEnchantmentLevel(enchantment)
-        if (gameMode != GameMode.CREATIVE) {
+        if (!isCreative) {
             if (level >= REQUIRE_LEVEL) {
                 level -= REQUIRE_LEVEL
             } else {
@@ -111,18 +144,27 @@ class EvolutionCommandExecutor : BaseCommandExecutor() {
         return true
     }
 
+    private fun Player.sendInvalidArgsSizeMessage(): Boolean {
+        send { "Invalid args size." }
+        return false
+    }
+
     private fun Player.sendInvalidEnchantmentNameMessage(name: String): Boolean {
         send { "Invalid enchantment name. (${name})" }
         return true
     }
 
+    private val Player.isCreative: Boolean
+        get() = gameMode == GameMode.CREATIVE
+
     companion object {
         private const val REQUIRE_LEVEL = 10
 
-        private enum class Flag { DELETE }
+        private enum class Flag { DELETE, STORE }
 
         private val flags = mapOf(
             "-d" to Flag.DELETE,
+            "-s" to Flag.STORE,
         )
     }
 }
