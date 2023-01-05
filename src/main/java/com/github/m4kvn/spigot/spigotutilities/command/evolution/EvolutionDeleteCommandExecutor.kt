@@ -2,20 +2,21 @@ package com.github.m4kvn.spigot.spigotutilities.command.evolution
 
 import com.github.m4kvn.spigot.spigotutilities.Constants
 import com.github.m4kvn.spigot.spigotutilities.command.core.SubCommandExecutor
-import com.github.m4kvn.spigot.spigotutilities.command.core.exception.*
-import com.github.m4kvn.spigot.spigotutilities.usecase.CreateEnchantedBookUsecase
+import com.github.m4kvn.spigot.spigotutilities.command.core.exception.HasNotEnchantmentItemInMainHandException
+import com.github.m4kvn.spigot.spigotutilities.command.core.exception.InvalidArgsSizeException
+import com.github.m4kvn.spigot.spigotutilities.command.core.exception.InvalidCommandSenderException
+import com.github.m4kvn.spigot.spigotutilities.command.core.exception.InvalidEnchantmentNameException
 import com.github.m4kvn.spigot.spigotutilities.usecase.FindEnchantmentUsecase
 import org.bukkit.GameMode
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import org.koin.core.component.inject
 
-class EvolutionStoreCommandExecutor : SubCommandExecutor() {
+class EvolutionDeleteCommandExecutor : SubCommandExecutor() {
     private val findEnchantmentUsecase: FindEnchantmentUsecase by inject()
-    private val createEnchantedBookUsecase: CreateEnchantedBookUsecase by inject()
 
-    override val flags: List<String> = listOf("-s", "--store")
-    override val usage: String = "<enchantment>"
+    override val flags: List<String> = listOf("-d", "--delete")
+    override val usage: String = "<evolution>"
 
     override fun onCommand(sender: CommandSender, args: List<String>) {
         val player = sender as? Player
@@ -34,22 +35,14 @@ class EvolutionStoreCommandExecutor : SubCommandExecutor() {
             throw HasNotEnchantmentItemInMainHandException(enchantmentName)
         }
 
-        val requireLevel = currentLevel * Constants.EVOLUTION_BASE_REQUIRE_LEVEL
-        if (player.gameMode != GameMode.CREATIVE && requireLevel > player.level) {
-            throw NotEnoughExpLevelException(requireLevel)
+        if (currentLevel == 1) {
+            mainHandItemStack.removeEnchantment(enchantment)
+        } else {
+            mainHandItemStack.addUnsafeEnchantment(enchantment, currentLevel - 1)
         }
 
-        val inventoryEmptyPosition = player.inventory.firstEmpty()
-        if (inventoryEmptyPosition == -1) {
-            throw NotEnoughSpaceInInventoryException()
-        }
-
-        val enchantedBook = createEnchantedBookUsecase(enchantment, currentLevel)
-
-        player.inventory.setItem(inventoryEmptyPosition, enchantedBook)
-        mainHandItemStack.removeEnchantment(enchantment)
         if (player.gameMode != GameMode.CREATIVE) {
-            player.level -= requireLevel
+            player.level += currentLevel * Constants.EVOLUTION_BASE_REQUIRE_LEVEL
         }
     }
 }
