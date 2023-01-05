@@ -1,170 +1,72 @@
 package com.github.m4kvn.spigot.spigotutilities.command
 
+import com.github.m4kvn.spigot.spigotutilities.Constants
+import com.github.m4kvn.spigot.spigotutilities.command.core.exception.EmptyEnchantmentItemInMainHandException
+import com.github.m4kvn.spigot.spigotutilities.command.core.exception.HasNotEnchantmentItemInMainHandException
+import com.github.m4kvn.spigot.spigotutilities.command.core.exception.InvalidCommandSenderException
+import com.github.m4kvn.spigot.spigotutilities.command.core.exception.NotEnoughExpLevelException
+import com.github.m4kvn.spigot.spigotutilities.command.evolution.EvolutionDeleteCommandExecutor
+import com.github.m4kvn.spigot.spigotutilities.command.evolution.EvolutionStoreCommandExecutor
 import com.github.m4kvn.spigot.spigotutilities.send
+import com.github.m4kvn.spigot.spigotutilities.usecase.FindEnchantmentUsecase
 import org.bukkit.ChatColor
 import org.bukkit.GameMode
-import org.bukkit.Material
-import org.bukkit.NamespacedKey
-import org.bukkit.command.Command
 import org.bukkit.command.CommandSender
-import org.bukkit.enchantments.Enchantment
 import org.bukkit.entity.Player
-import org.bukkit.inventory.ItemStack
-import org.bukkit.inventory.meta.EnchantmentStorageMeta
+import org.koin.core.component.inject
 
 class EvolutionCommandExecutor : BaseCommandExecutor() {
+    private val findEnchantmentUsecase: FindEnchantmentUsecase by inject()
+
     override val commandName: String = "evolution"
 
-    override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
-        if (sender !is Player) {
-            sender.send { "This command must be executed by the player." }
-            return false
+    override val subCommands = listOf(
+        EvolutionStoreCommandExecutor(),
+        EvolutionDeleteCommandExecutor(),
+    )
+
+    override fun onCommand(sender: CommandSender, args: List<String>) {
+        val player = sender as? Player
+            ?: throw InvalidCommandSenderException(Player::class)
+
+        val mainHandItemStack = player.inventory.itemInMainHand
+        if (mainHandItemStack.enchantments.isEmpty()) {
+            throw EmptyEnchantmentItemInMainHandException()
         }
-        val mainHandItem = sender.inventory.itemInMainHand
-        val enchantments = mainHandItem.enchantments
-        if (enchantments.isEmpty()) {
-            sender.send { "This item has not any enchantments." }
-            return false
-        }
+
         if (args.isEmpty()) {
-            sender.send {
-                buildString {
-                    appendLine("Available enchantment list of ${mainHandItem.type}")
-                    append(enchantments.keys.joinToString(separator = "\n") {
-                        "- ${ChatColor.AQUA}${it.key.key}${ChatColor.RESET} (lv.${enchantments[it]})"
-                    })
-                }
+            val enchantments = mainHandItemStack.enchantments
+            val message = buildString {
+                appendLine("Available enchantment list of ${mainHandItemStack.type}")
+                append(enchantments.keys.joinToString(separator = "\n") {
+                    "- ${ChatColor.AQUA}${it.key.key}${ChatColor.RESET} (lv.${enchantments[it]})"
+                })
             }
-            return true
+            sender.send { message }
+            return
         }
-        return when (flags[args.first()]) {
-            Flag.DELETE -> sender.executeDelete(mainHandItem, args.drop(1))
-            Flag.STORE -> sender.executeSave(mainHandItem, args.drop(1))
-            else -> sender.executeEvo(mainHandItem, args.first())
+
+        val enchantmentName = args.first()
+        val enchantment = findEnchantmentUsecase(enchantmentName)
+            ?: throw HasNotEnchantmentItemInMainHandException(enchantmentName)
+
+        val currentLevel = mainHandItemStack.getEnchantmentLevel(enchantment)
+        val requireLevel = currentLevel * Constants.EVOLUTION_BASE_REQUIRE_LEVEL
+        if (player.gameMode != GameMode.CREATIVE && requireLevel > player.level) {
+            throw NotEnoughExpLevelException(requireLevel)
+        }
+
+        mainHandItemStack.addUnsafeEnchantment(enchantment, currentLevel + 1)
+
+        if (player.gameMode != GameMode.CREATIVE) {
+            player.level -= requireLevel
         }
     }
 
-    override fun onTabComplete(
-        sender: CommandSender,
-        command: Command,
-        label: String,
-        args: Array<out String>,
-    ): MutableList<String>? {
-        val player = sender as? Player ?: return null
+    override fun getAllCompletions(sender: CommandSender, args: Array<out String>, index: Int?): List<String> {
+        val player = sender as? Player ?: return emptyList()
         val enchantments = player.inventory.itemInMainHand.enchantments
-        if (enchantments.isEmpty()) return null
-        val enchantmentKeys = enchantments.keys.map { it.key.key }
-        val allCompletions = flags.keys + enchantmentKeys
-        val completions = when (args.size) {
-            0 -> allCompletions
-            1 -> {
-                val arg = args[0]
-                if (arg.isBlank())
-                    allCompletions else
-                    allCompletions.filter { it.matches("^${arg}.*".toRegex()) }
-            }
-
-            2 -> {
-                if (flags.containsKey(args[0]))
-                    enchantmentKeys.filter { it.matches("^${args[1]}.*".toRegex()) } else
-                    emptyList()
-            }
-
-            else -> emptyList()
-        }
-        return completions.toMutableList()
-    }
-
-    private fun findEnchantment(name: String): Enchantment? {
-        val enchantmentKey = NamespacedKey.fromString(name)
-        return Enchantment.getByKey(enchantmentKey)
-    }
-
-    private fun createEnchantedBook(enchantment: Enchantment, level: Int): ItemStack {
-        val book = ItemStack(Material.ENCHANTED_BOOK, 1)
-        val meta = book.itemMeta as EnchantmentStorageMeta
-        meta.addStoredEnchant(enchantment, level, true)
-        book.itemMeta = meta
-        return book
-    }
-
-    private fun Player.executeSave(itemStack: ItemStack, args: List<String>): Boolean {
-        if (args.isEmpty()) return sendInvalidArgsSizeMessage()
-        val enchantmentName = args.first()
-        val enchantment = findEnchantment(enchantmentName)
-            ?: return sendInvalidEnchantmentNameMessage(enchantmentName)
-        val currentLevel = itemStack.getEnchantmentLevel(enchantment)
-        val requireLevel = currentLevel * REQUIRE_LEVEL
-        if (!isCreative && requireLevel > level) {
-            send { "Not enough Exp Level for evolution save. (require: ${requireLevel})" }
-            return true
-        }
-        val index = inventory.firstEmpty()
-        if (index == -1) {
-            send { "Not enough space in your inventory." }
-            return true
-        }
-        val book = createEnchantedBook(enchantment, currentLevel)
-        inventory.setItem(index, book)
-        itemStack.removeEnchantment(enchantment)
-        if (!isCreative) {
-            level -= requireLevel
-        }
-        return true
-    }
-
-    private fun Player.executeDelete(itemStack: ItemStack, args: List<String>): Boolean {
-        if (args.isEmpty()) return sendInvalidArgsSizeMessage()
-        val enchantmentName = args.first()
-        val enchantment = findEnchantment(enchantmentName)
-            ?: return sendInvalidEnchantmentNameMessage(enchantmentName)
-        val currentLevel = itemStack.getEnchantmentLevel(enchantment)
-        if (currentLevel == 1) {
-            itemStack.removeEnchantment(enchantment)
-        } else {
-            itemStack.addUnsafeEnchantment(enchantment, currentLevel - 1)
-        }
-        level += REQUIRE_LEVEL
-        return true
-    }
-
-    private fun Player.executeEvo(itemStack: ItemStack, enchantmentName: String): Boolean {
-        val enchantment = findEnchantment(enchantmentName)
-            ?: return sendInvalidEnchantmentNameMessage(enchantmentName)
-        val currentLevel = itemStack.getEnchantmentLevel(enchantment)
-        if (!isCreative) {
-            if (level >= REQUIRE_LEVEL) {
-                level -= REQUIRE_LEVEL
-            } else {
-                send { "Not enough Exp Level for evolution. (require: ${REQUIRE_LEVEL})" }
-                return true
-            }
-        }
-        itemStack.addUnsafeEnchantment(enchantment, currentLevel + 1)
-        return true
-    }
-
-    private fun Player.sendInvalidArgsSizeMessage(): Boolean {
-        send { "Invalid args size." }
-        return false
-    }
-
-    private fun Player.sendInvalidEnchantmentNameMessage(name: String): Boolean {
-        send { "Invalid enchantment name. (${name})" }
-        return true
-    }
-
-    private val Player.isCreative: Boolean
-        get() = gameMode == GameMode.CREATIVE
-
-    companion object {
-        private const val REQUIRE_LEVEL = 10
-
-        private enum class Flag { DELETE, STORE }
-
-        private val flags = mapOf(
-            "-d" to Flag.DELETE,
-            "-s" to Flag.STORE,
-        )
+        if (enchantments.isEmpty()) return emptyList()
+        return enchantments.keys.map { it.key.key }
     }
 }
