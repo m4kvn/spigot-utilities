@@ -2,6 +2,7 @@ package com.github.m4kvn.spigot.spigotutilities
 
 import com.github.m4kvn.spigot.spigotutilities.command.EvolutionCommandExecutor
 import com.github.m4kvn.spigot.spigotutilities.command.UtilitiesCommandExecutor
+import com.github.m4kvn.spigot.spigotutilities.listener.ChunkCheckListener
 import com.github.m4kvn.spigot.spigotutilities.listener.ConfigsListener
 import com.github.m4kvn.spigot.spigotutilities.listener.ExplodeProtectListener
 import com.github.m4kvn.spigot.spigotutilities.listener.FireProtectListener
@@ -26,5 +27,6 @@ class Main : JavaPlugin() {
         ConfigsListener().register()
         FireProtectListener().register()
         ExplodeProtectListener().register()
+        ChunkCheckListener().register()
     }
 }
