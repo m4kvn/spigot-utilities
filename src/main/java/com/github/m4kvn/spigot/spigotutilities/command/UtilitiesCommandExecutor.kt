@@ -9,7 +9,6 @@ import com.github.m4kvn.spigot.spigotutilities.send
 import org.bukkit.command.Command
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
-import org.spigotmc.SpigotConfig.config
 
 class UtilitiesCommandExecutor : BaseCommandExecutor() {
 
@@ -24,7 +23,7 @@ class UtilitiesCommandExecutor : BaseCommandExecutor() {
         val parameter = Configs.find(args[0]) ?: throw InvalidArgumentException(args[0])
         val value = args[1].toBooleanStrictOrNull() ?: throw InvalidArgumentException(args[1])
 
-        config["${sender.name}.${parameter.asPath}"] = value
+        plugin.config[parameter.getFullPath(sender.name)] = value
         plugin.saveConfig()
         sender.send { "Complete configuration changes." }
     }
